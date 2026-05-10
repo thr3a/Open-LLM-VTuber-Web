@@ -557,10 +557,12 @@ export class LAppModel extends CubismUserModel {
     this._model.loadParameters(); // 前回セーブされた状態をロード
     if (this._motionManager.isFinished()) {
       // モーションの再生がない場合、待機モーションの中からランダムで再生する
-      this.startRandomMotion(
-        LAppDefine.MotionGroupIdle,
-        LAppDefine.PriorityIdle
-      );
+      if (LAppDefine.CurrentIdleMotionGroupName) {
+        this.startRandomMotion(
+          LAppDefine.CurrentIdleMotionGroupName,
+          LAppDefine.PriorityIdle
+        );
+      }
     } else {
       motionUpdated = this._motionManager.updateMotion(
         this._model,
@@ -598,8 +600,14 @@ export class LAppModel extends CubismUserModel {
     ); // -10から10の値を加える
 
     // ドラッグによる目の向きの調整
-    this._model.addParameterValueById(this._idParamEyeBallX, this._dragX); // -1から1の値を加える
-    this._model.addParameterValueById(this._idParamEyeBallY, this._dragY);
+    this._model.addParameterValueById(this._idParamEyeBallX, this._dragX * 2.0); // -1から1の値を加える
+    if (this._idParamBodyAngleY) {
+      this._model.addParameterValueById(
+        this._idParamBodyAngleY,
+        this._dragY * 10
+      );
+    }
+    this._model.addParameterValueById(this._idParamEyeBallY, this._dragY * 2.0);
 
     // 呼吸など
     if (this._breath != null) {
@@ -1292,6 +1300,9 @@ export class LAppModel extends CubismUserModel {
       this._idParamBodyAngleX = idManager.getId(
         CubismDefaultParameterId.ParamBodyAngleX
       );
+      this._idParamBodyAngleY = idManager.getId(
+        CubismDefaultParameterId.ParamBodyAngleY
+      );
     } else {
       // Initialize handles with null to avoid undefined errors
       this._idParamAngleX = null;
@@ -1300,6 +1311,7 @@ export class LAppModel extends CubismUserModel {
       this._idParamEyeBallX = null;
       this._idParamEyeBallY = null;
       this._idParamBodyAngleX = null;
+      this._idParamBodyAngleY = null;
     }
 
     if (LAppDefine.MOCConsistencyValidationEnable) {
@@ -1327,6 +1339,7 @@ export class LAppModel extends CubismUserModel {
 
   _hitArea: csmVector<csmRect>;
   _userArea: csmVector<csmRect>;
+  _idParamBodyAngleY: CubismIdHandle;
 
   _idParamAngleX: CubismIdHandle; // パラメータID: ParamAngleX
   _idParamAngleY: CubismIdHandle; // パラメータID: ParamAngleY

@@ -14,9 +14,6 @@ import { DisplayText } from '@/services/websocket-service';
 import { useLive2DExpression } from '@/hooks/canvas/use-live2d-expression';
 import * as LAppDefine from '../../../WebSDK/src/lappdefine';
 
-// Simple type alias for Live2D model
-type Live2DModel = any;
-
 interface AudioTaskOptions {
   audioBase64: string
   volumes: number[]
@@ -25,12 +22,45 @@ interface AudioTaskOptions {
   expressions?: string[] | number[] | null
   speaker_uid?: string
   forwarded?: boolean
+  turnId?: string
+  ttsError?: boolean
 }
+
+interface UseAudioTaskOptions {
+  managePlaybackCompletion?: boolean
+}
+
+const TOOL_STATUS_ONLY_RE = /^\s*(?:<tool>\s*)?\[[^\]]+\]\s*(?:<\/tool>\s*)?$/i;
+const LIP_SYNC_SCALE = 2.0;
+const LIP_SYNC_ATTACK_SECONDS = 0.07;
+const LIP_SYNC_RELEASE_SECONDS = 0.14;
+const LIP_SYNC_MIN_DT_SECONDS = 1 / 240;
+const LIP_SYNC_MAX_DT_SECONDS = 0.12;
+
+const isDisplayOnlyToolStatus = (options: AudioTaskOptions): boolean => {
+  if (options.audioBase64 || !options.displayText?.text) {
+    return false;
+  }
+  return TOOL_STATUS_ONLY_RE.test(options.displayText.text);
+};
+
+const clamp = (value: number, min: number, max: number): number => Math.min(Math.max(value, min), max);
+
+const smoothLipSyncValue = (previousValue: number, targetValue: number, deltaTimeSeconds: number): number => {
+  const dt = clamp(deltaTimeSeconds, LIP_SYNC_MIN_DT_SECONDS, LIP_SYNC_MAX_DT_SECONDS);
+  const timeConstant = targetValue > previousValue ? LIP_SYNC_ATTACK_SECONDS : LIP_SYNC_RELEASE_SECONDS;
+  if (timeConstant <= 0) {
+    return targetValue;
+  }
+
+  const alpha = 1 - Math.exp(-dt / timeConstant);
+  return previousValue + ((targetValue - previousValue) * alpha);
+};
 
 /**
  * Custom hook for handling audio playback tasks with Live2D lip sync
  */
-export const useAudioTask = () => {
+export const useAudioTask = ({ managePlaybackCompletion = false }: UseAudioTaskOptions = {}) => {
   const { t } = useTranslation();
   const { aiState, backendSynthComplete, setBackendSynthComplete } = useAiState();
   const { setSubtitleText } = useSubtitle();
@@ -45,8 +75,10 @@ export const useAudioTask = () => {
     appendResponse,
     appendAIMessage,
   });
-
-  // Note: currentAudioRef and currentModelRef are now managed by the global audioManager
+  const isMountedRef = useRef(true);
+  const backendSynthCompleteRef = useRef(backendSynthComplete);
+  const playbackCompleteAckInFlightRef = useRef(false);
+  const currentTurnIdRef = useRef<string | null>(null);
 
   stateRef.current = {
     aiState,
@@ -54,6 +86,7 @@ export const useAudioTask = () => {
     appendResponse,
     appendAIMessage,
   };
+  backendSynthCompleteRef.current = backendSynthComplete;
 
   /**
    * Stop current audio playback and lip sync (delegates to global audioManager)
@@ -73,37 +106,53 @@ export const useAudioTask = () => {
       appendAIMessage: appendAI,
     } = stateRef.current;
 
-    // Skip if already interrupted
     if (currentAiState === 'interrupted') {
       console.warn('Audio playback blocked by interruption state.');
       resolve();
       return;
     }
 
-    const { audioBase64, displayText, expressions, forwarded } = options;
+    const {
+      audioBase64, displayText, expressions, forwarded, turnId, ttsError,
+    } = options;
+    const isToolStatus = isDisplayOnlyToolStatus(options);
 
-    // Update display text
     if (displayText) {
-      appendText(displayText.text);
-      appendAI(displayText.text, displayText.name, displayText.avatar);
-      if (audioBase64) {
-        updateSubtitle(displayText.text);
+      const renderedText = displayText.text;
+      appendText(renderedText);
+      appendAI(renderedText, displayText.name, displayText.avatar);
+
+      if (audioBase64 || isToolStatus) {
+        updateSubtitle(renderedText);
       }
-      if (!forwarded) {
+
+      if (turnId) {
+        currentTurnIdRef.current = turnId;
+      }
+
+      // Only real audio playback should be reported as playback start.
+      if (!forwarded && audioBase64) {
+        console.log(`[PLAYBACK] notifying backend audio task accepted: ${renderedText}`);
         sendMessage({
-          type: "audio-play-start",
+          type: 'audio-play-start',
           display_text: displayText,
           forwarded: true,
+          turn_id: turnId,
         });
       }
     }
 
     try {
-      // Process audio if available
       if (audioBase64) {
-        const audioDataUrl = `data:audio/wav;base64,${audioBase64}`;
+        if (expressions?.[0] !== undefined) {
+          setExpression(
+            expressions[0],
+            undefined,
+            `Queued transient expression: ${expressions[0]}`,
+          );
+        }
 
-        // Get Live2D manager and model
+        const audioDataUrl = `data:audio/wav;base64,${audioBase64}`;
         const live2dManager = (window as any).getLive2DManager?.();
         if (!live2dManager) {
           console.error('Live2D manager not found');
@@ -125,34 +174,23 @@ export const useAudioTask = () => {
           console.log('Model has _wavFileHandler available');
         }
 
-        // Set expression if available
-        const lappAdapter = (window as any).getLAppAdapter?.();
-        if (lappAdapter && expressions?.[0] !== undefined) {
-          setExpression(
-            expressions[0],
-            lappAdapter,
-            `Set expression to: ${expressions[0]}`,
-          );
-        }
-
-        // Start talk motion
         if (LAppDefine && LAppDefine.PriorityNormal) {
           console.log("Starting random 'Talk' motion");
           model.startRandomMotion(
-            "Talk",
+            'Talk',
             LAppDefine.PriorityNormal,
           );
         } else {
           console.warn("LAppDefine.PriorityNormal not found - cannot start talk motion");
         }
 
-        // Setup audio element
-        const audio = new Audio(audioDataUrl);
-        
-        // Register with global audio manager IMMEDIATELY after creating audio
-        audioManager.setCurrentAudio(audio, model);
-        let isFinished = false;
+        // A real audio segment should immediately replace the temporary tool-status layer.
+        if (displayText) {
+          updateSubtitle(displayText.text);
+        }
 
+        const audio = new Audio(audioDataUrl);
+        let isFinished = false;
         const cleanup = () => {
           audioManager.clearCurrentAudio(audio);
           if (!isFinished) {
@@ -160,40 +198,56 @@ export const useAudioTask = () => {
             resolve();
           }
         };
-
-        // Enhance lip sync sensitivity
-        const lipSyncScale = 2.0;
+        audioManager.setCurrentAudio(audio, model, cleanup);
 
         audio.addEventListener('canplaythrough', () => {
-          // Check for interruption before playback
           if (stateRef.current.aiState === 'interrupted' || !audioManager.hasCurrentAudio()) {
             console.warn('Audio playback cancelled due to interruption or audio was stopped');
             cleanup();
             return;
           }
 
-          console.log('Starting audio playback with lip sync');
-          audio.play().catch((err) => {
-            console.error("Audio play error:", err);
-            cleanup();
-          });
+          audio.play()
+            .then(() => {
+              console.log(`[PLAYBACK] audio element began audible playback: ${displayText?.text ?? ''}`);
+              sendMessage({
+                type: 'audio-play-began',
+                display_text: displayText ?? undefined,
+                forwarded: true,
+                turn_id: turnId,
+              });
+            })
+            .catch((err) => {
+              console.error('Audio play error:', err);
+              cleanup();
+            });
 
-          // Setup lip sync
           if (model._wavFileHandler) {
-            if (!model._wavFileHandler._initialized) {
-              console.log('Applying enhanced lip sync');
-              model._wavFileHandler._initialized = true;
+            if (!model._wavFileHandler.__xnneLipSyncSmoothingInstalled) {
+              console.log('Applying smoothed lip sync');
+              model._wavFileHandler.__xnneLipSyncSmoothingInstalled = true;
+              model._wavFileHandler.__xnneLipSyncSmoothedRms = 0.0;
 
               const originalUpdate = model._wavFileHandler.update.bind(model._wavFileHandler);
               model._wavFileHandler.update = function (deltaTimeSeconds: number) {
                 const result = originalUpdate(deltaTimeSeconds);
                 // @ts-ignore
-                this._lastRms = Math.min(2.0, this._lastRms * lipSyncScale);
+                const previousValue = typeof this.__xnneLipSyncSmoothedRms === 'number'
+                  ? this.__xnneLipSyncSmoothedRms
+                  : 0.0;
+                // @ts-ignore
+                const scaledTarget = clamp(this._lastRms * LIP_SYNC_SCALE, 0.0, 2.0);
+                const smoothedValue = smoothLipSyncValue(previousValue, scaledTarget, deltaTimeSeconds);
+                // @ts-ignore
+                this.__xnneLipSyncSmoothedRms = smoothedValue;
+                // @ts-ignore
+                this._lastRms = smoothedValue;
                 return result;
               };
             }
 
             if (audioManager.hasCurrentAudio()) {
+              model._wavFileHandler.__xnneLipSyncSmoothedRms = 0.0;
               model._wavFileHandler.start(audioDataUrl);
             } else {
               console.warn('WavFileHandler start skipped - audio was stopped');
@@ -202,49 +256,79 @@ export const useAudioTask = () => {
         });
 
         audio.addEventListener('ended', () => {
-          console.log("Audio playback completed");
+          console.log(`[PLAYBACK] audio element completed: ${displayText?.text ?? ''}`);
           cleanup();
         });
 
         audio.addEventListener('error', (error) => {
-          console.error("Audio playback error:", error);
+          console.error('Audio playback error:', error);
+          cleanup();
+        });
+
+        audio.addEventListener('abort', () => {
+          console.log(`[PLAYBACK] audio element aborted: ${displayText?.text ?? ''}`);
           cleanup();
         });
 
         audio.load();
       } else {
+        if (ttsError) {
+          toaster.create({
+            title: t('error.ttsGenerationFailed', { defaultValue: '当前这句语音生成失败，已跳过。' }),
+            type: 'warning',
+            duration: 2000,
+          });
+        }
         resolve();
       }
     } catch (error) {
       console.error('Audio playback setup error:', error);
       toaster.create({
         title: `${t('error.audioPlayback')}: ${error}`,
-        type: "error",
+        type: 'error',
         duration: 2000,
       });
       resolve();
     }
   });
 
-  // Handle backend synthesis completion
+  useEffect(() => () => {
+    isMountedRef.current = false;
+  }, []);
+
   useEffect(() => {
-    let isMounted = true;
+    if (!managePlaybackCompletion) {
+      return;
+    }
+    if (!backendSynthComplete || playbackCompleteAckInFlightRef.current) {
+      return;
+    }
 
-    const handleComplete = async () => {
-      await audioTaskQueue.waitForCompletion();
-      if (isMounted && backendSynthComplete) {
+    playbackCompleteAckInFlightRef.current = true;
+    const completedTurnId = currentTurnIdRef.current;
+
+    void (async () => {
+      try {
+        await audioTaskQueue.waitForCompletion();
+        if (!isMountedRef.current || !backendSynthCompleteRef.current) {
+          return;
+        }
         stopCurrentAudioAndLipSync();
-        sendMessage({ type: "frontend-playback-complete" });
+        console.log(`[PLAYBACK] frontend completed all queued audio for turn: ${completedTurnId ?? 'unknown'}`);
+        sendMessage({ type: 'frontend-playback-complete', turn_id: completedTurnId || undefined });
+        backendSynthCompleteRef.current = false;
         setBackendSynthComplete(false);
+      } finally {
+        playbackCompleteAckInFlightRef.current = false;
       }
-    };
-
-    handleComplete();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [backendSynthComplete, sendMessage, setBackendSynthComplete, stopCurrentAudioAndLipSync]);
+    })();
+  }, [
+    backendSynthComplete,
+    managePlaybackCompletion,
+    sendMessage,
+    setBackendSynthComplete,
+    stopCurrentAudioAndLipSync,
+  ]);
 
   /**
    * Add a new audio task to the queue
@@ -257,7 +341,14 @@ export const useAudioTask = () => {
       return;
     }
 
-    console.log(`Adding audio task ${options.displayText?.text} to queue`);
+    // Tool status should show up immediately, but it should not block or impersonate audio playback.
+    if (isDisplayOnlyToolStatus(options)) {
+      console.log(`[PLAYBACK] showing tool status immediately: ${options.displayText?.text}`);
+      await handleAudioPlayback(options);
+      return;
+    }
+
+    console.log(`[PLAYBACK] queueing audio task: ${options.displayText?.text}`);
     audioTaskQueue.addTask(() => handleAudioPlayback(options));
   };
 

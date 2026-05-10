@@ -16,6 +16,20 @@ import { useInputSubtitle } from '@/hooks/electron/use-input-subtitle';
 import { useDraggable } from '@/hooks/electron/use-draggable';
 import { inputSubtitleStyles } from './electron-style';
 import { useMode } from '@/context/mode-context';
+import { useMood } from '@/context/mood-context';
+
+function getMoodPresentation(score: number) {
+  if (score >= 90) {
+    return { emoji: '😊', label: 'excited' };
+  }
+  if (score >= 80) {
+    return { emoji: '🙂', label: 'normal' };
+  }
+  if (score >= 60) {
+    return { emoji: '😔', label: 'low' };
+  }
+  return { emoji: '😶', label: 'silent' };
+}
 
 export function InputSubtitle() {
   const {
@@ -34,7 +48,10 @@ export function InputSubtitle() {
   } = useInputSubtitle();
 
   const { mode } = useMode();
+  const { moodScore } = useMood();
   const isPet = mode === 'pet';
+  const mood = getMoodPresentation(moodScore);
+  const moodDescription = `Mood: ${mood.label} (${moodScore})`;
 
   const {
     elementRef,
@@ -123,6 +140,21 @@ export function InputSubtitle() {
               <LuBell size={16} />
               <Text {...inputSubtitleStyles.statusText}>
                 {aiState}
+              </Text>
+              <Text
+                {...inputSubtitleStyles.statusText}
+                lineHeight="1"
+                title={moodDescription}
+                aria-label={moodDescription}
+              >
+                {mood.emoji}
+              </Text>
+              <Text
+                {...inputSubtitleStyles.statusText}
+                lineHeight="1"
+                aria-hidden="true"
+              >
+                {moodScore}
               </Text>
             </Flex>
 

@@ -1,5 +1,5 @@
 /* eslint-disable no-shadow */
-import { app, ipcMain, globalShortcut, desktopCapturer } from "electron";
+import { app, ipcMain, globalShortcut, desktopCapturer, screen } from "electron";
 import { electronApp, optimizer } from "@electron-toolkit/utils";
 import { WindowManager } from "./window-manager";
 import { MenuManager } from "./menu-manager";
@@ -70,6 +70,19 @@ function setupIPC(): void {
   ipcMain.handle('get-screen-capture', async () => {
     const sources = await desktopCapturer.getSources({ types: ['screen'] });
     return sources[0].id;
+  });
+
+  ipcMain.handle('get-cursor-window-point', () => {
+    const window = windowManager.getWindow();
+    if (!window) return null;
+
+    const bounds = window.getBounds();
+    const cursorPoint = screen.getCursorScreenPoint();
+
+    return {
+      x: cursorPoint.x - bounds.x,
+      y: cursorPoint.y - bounds.y,
+    };
   });
 }
 

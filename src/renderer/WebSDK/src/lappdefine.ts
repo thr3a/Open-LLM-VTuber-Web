@@ -36,16 +36,30 @@ export let ResourcesPath = "";
 // Model directory and filename storage
 export let ModelDir: string[] = [];
 export let ModelFileNames: string[] = []; // New array to store model file names
+export let CurrentIdleMotionGroupName: string | null = 'Idle';
 
 // Function to update model configuration with both directory and file name
-export function updateModelConfig(resourcePath: string, modelDirectory: string, modelFileName: string, kScale?: number) {
-  console.log('Updating model config:', { resourcePath, modelDirectory, modelFileName, kScale });
+export function updateModelConfig(
+  resourcePath: string,
+  modelDirectory: string,
+  modelFileName: string,
+  kScale?: number,
+  idleMotionGroupName?: string,
+) {
+  console.log('Updating model config:', {
+    resourcePath,
+    modelDirectory,
+    modelFileName,
+    kScale,
+    idleMotionGroupName,
+  });
   ResourcesPath = resourcePath;
   ModelDir = [modelDirectory];
   ModelFileNames = [modelFileName]; // Store the actual model file name
   if (kScale !== undefined) {
     CurrentKScale = kScale;
   }
+  CurrentIdleMotionGroupName = idleMotionGroupName ?? null;
   // Update ModelDirSize when ModelDir changes
   ModelDirSize = ModelDir.length;
 }

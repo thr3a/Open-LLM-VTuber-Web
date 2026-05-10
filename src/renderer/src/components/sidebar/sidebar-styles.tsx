@@ -499,10 +499,12 @@ export const chatPanelStyles = css`
     font-size: 0.95rem !important;
     line-height: 1.5 !important;
     margin-top: 4px !important;
+    white-space: pre-wrap !important;
   }
 
   .cs-message__text {
     padding: 8px 0 !important;
+    white-space: pre-wrap !important;
   }
 
   .cs-message--outgoing .cs-message__content {

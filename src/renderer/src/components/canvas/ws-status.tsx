@@ -19,7 +19,7 @@ const MemoizedStatusContent = memo(StatusContent);
 // Main component
 const WebSocketStatus = memo((): JSX.Element => {
   const {
-    color, textKey, handleClick, isDisconnected,
+    color, textKey, handleClick, isClickable,
   } = useWSStatus();
 
   return (
@@ -27,9 +27,9 @@ const WebSocketStatus = memo((): JSX.Element => {
       {...canvasStyles.wsStatus.container}
       backgroundColor={color}
       onClick={handleClick}
-      cursor={isDisconnected ? 'pointer' : 'default'}
+      cursor={isClickable ? 'pointer' : 'default'}
       _hover={{
-        opacity: isDisconnected ? 0.8 : 1,
+        opacity: isClickable ? 0.8 : 1,
       }}
     >
       <MemoizedStatusContent textKey={textKey} />

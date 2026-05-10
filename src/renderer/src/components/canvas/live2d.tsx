@@ -5,11 +5,12 @@ import { memo, useRef, useEffect } from "react";
 import { useLive2DConfig } from "@/context/live2d-config-context";
 import { useIpcHandlers } from "@/hooks/utils/use-ipc-handlers";
 import { useInterrupt } from "@/hooks/utils/use-interrupt";
-import { useAudioTask } from "@/hooks/utils/use-audio-task";
 import { useLive2DModel } from "@/hooks/canvas/use-live2d-model";
 import { useLive2DResize } from "@/hooks/canvas/use-live2d-resize";
 import { useAiState, AiStateEnum } from "@/context/ai-state-context";
 import { useLive2DExpression } from "@/hooks/canvas/use-live2d-expression";
+import { useLive2DAppearance } from "@/hooks/canvas/use-live2d-appearance";
+import { useLive2DPoseMixer } from "@/hooks/canvas/use-live2d-pose-mixer";
 import { useForceIgnoreMouse } from "@/hooks/utils/use-force-ignore-mouse";
 import { useMode } from "@/context/mode-context";
 
@@ -20,12 +21,16 @@ interface Live2DProps {
 export const Live2D = memo(
   ({ showSidebar }: Live2DProps): JSX.Element => {
     const { forceIgnoreMouse } = useForceIgnoreMouse();
-    const { modelInfo } = useLive2DConfig();
+    const { modelInfo, persistentAppearance } = useLive2DConfig();
     const { mode } = useMode();
     const internalContainerRef = useRef<HTMLDivElement>(null);
     const { aiState } = useAiState();
     const { resetExpression } = useLive2DExpression();
     const isPet = mode === 'pet';
+
+    // Keep this order stable: appearance/expression wrapper first, mixer wrapper second.
+    useLive2DAppearance(modelInfo, persistentAppearance);
+    useLive2DPoseMixer(modelInfo?.url);
 
     // Get canvasRef from useLive2DResize
     const { canvasRef } = useLive2DResize({
@@ -43,17 +48,12 @@ export const Live2D = memo(
     // Setup hooks
     useIpcHandlers();
     useInterrupt();
-    useAudioTask();
-
-    // Reset expression to default when AI state becomes idle
+    // Idle only clears the transient expression layer.
     useEffect(() => {
       if (aiState === AiStateEnum.IDLE) {
-        const lappAdapter = (window as any).getLAppAdapter?.();
-        if (lappAdapter) {
-          resetExpression(lappAdapter, modelInfo);
-        }
+        resetExpression();
       }
-    }, [aiState, modelInfo, resetExpression]);
+    }, [aiState, resetExpression]);
 
     // Expose setExpression for console testing
     // useEffect(() => {
@@ -127,4 +127,4 @@ export const Live2D = memo(
 
 Live2D.displayName = "Live2D";
 
-export { useInterrupt, useAudioTask };
+export { useInterrupt };

@@ -5,17 +5,23 @@ interface WSStatusInfo {
   color: string
   textKey: string
   isDisconnected: boolean
+  isClickable: boolean
   handleClick: () => void
 }
 
 export const useWSStatus = () => {
-  const { wsState, reconnect } = useWebSocket();
+  const { wsState, reconnect, disconnect } = useWebSocket();
 
   const handleClick = useCallback(() => {
-    if (wsState !== 'OPEN' && wsState !== 'CONNECTING') {
+    if (wsState === 'OPEN') {
+      disconnect();
+      return;
+    }
+
+    if (wsState !== 'CONNECTING') {
       reconnect();
     }
-  }, [wsState, reconnect]);
+  }, [wsState, reconnect, disconnect]);
 
   const statusInfo = useMemo((): WSStatusInfo => {
     switch (wsState) {
@@ -24,6 +30,7 @@ export const useWSStatus = () => {
           color: 'green.500',
           textKey: 'wsStatus.connected',
           isDisconnected: false,
+          isClickable: true,
           handleClick,
         };
       case 'CONNECTING':
@@ -31,6 +38,7 @@ export const useWSStatus = () => {
           color: 'yellow.500',
           textKey: 'wsStatus.connecting',
           isDisconnected: false,
+          isClickable: false,
           handleClick,
         };
       default:
@@ -38,6 +46,7 @@ export const useWSStatus = () => {
           color: 'red.500',
           textKey: 'wsStatus.clickToReconnect',
           isDisconnected: true,
+          isClickable: true,
           handleClick,
         };
     }

@@ -5,13 +5,15 @@
 class AudioManager {
   private currentAudio: HTMLAudioElement | null = null;
   private currentModel: any | null = null;
+  private currentStopCallback: (() => void) | null = null;
 
   /**
    * Set the current playing audio
    */
-  setCurrentAudio(audio: HTMLAudioElement, model: any) {
+  setCurrentAudio(audio: HTMLAudioElement, model: any, onStop?: (() => void) | null) {
     this.currentAudio = audio;
     this.currentModel = model;
+    this.currentStopCallback = onStop ?? null;
   }
 
   /**
@@ -21,7 +23,8 @@ class AudioManager {
     if (this.currentAudio) {
       console.log('[AudioManager] Stopping current audio and lip sync');
       const audio = this.currentAudio;
-      
+      const stopCallback = this.currentStopCallback;
+
       // Stop audio playback
       audio.pause();
       audio.src = '';
@@ -52,6 +55,15 @@ class AudioManager {
       // Clear references
       this.currentAudio = null;
       this.currentModel = null;
+      this.currentStopCallback = null;
+
+      if (stopCallback) {
+        try {
+          stopCallback();
+        } catch (e) {
+          console.error('[AudioManager] Error running stop callback:', e);
+        }
+      }
     } else {
       console.log('[AudioManager] No current audio playing to stop.');
     }
@@ -64,6 +76,7 @@ class AudioManager {
     if (this.currentAudio === audio) {
       this.currentAudio = null;
       this.currentModel = null;
+      this.currentStopCallback = null;
     }
   }
 

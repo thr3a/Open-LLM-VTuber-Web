@@ -7,6 +7,9 @@ import { HistoryInfo } from '@/context/websocket-context';
 import { ConfigFile } from '@/context/character-config-context';
 import { toaster } from '@/components/ui/toaster';
 import { ImagePayload } from '@/types/media';
+import { PoseValues } from '@/live2d/mixer/logical-channels';
+import { IdleBankConfig, IdlePlaybackMode, IdlePlayCommand } from '@/live2d/mixer/recorded-idle-driver';
+import type { PoseLayerId } from '@/hooks/canvas/live2d-pose-mixer-controller';
 
 export interface DisplayText {
   text: string;
@@ -26,6 +29,8 @@ export interface AudioPayload {
   slice_length?: number;
   display_text?: DisplayText;
   actions?: Actions;
+  turn_id?: string;
+  tts_error?: boolean;
 }
 
 export interface Message {
@@ -48,6 +53,28 @@ export interface Actions {
   expressions?: string[] | number [];
   pictures?: string[];
   sounds?: string[];
+
+  /**
+   * Minimal logical pose input for the Live2D pose mixer (backend_pose_layer).
+   * Values are logical channels (normalized), not raw Live2D parameter IDs.
+   */
+  pose?: PoseValues | null;
+  pose_patch?: PoseValues | null;
+  pose_mode?: 'set' | 'patch' | 'clear';
+  pose_weight?: number;
+  mixer_weights?: Partial<Record<PoseLayerId, number>>;
+  mixer_weights_mode?: 'patch' | 'reset';
+
+  /**
+   * Minimal recorded-idle inputs (P2):
+   * - `idle_list` is the compact shape for quick integration.
+   * - `idle_bank` is a structured form for future metadata (weight/scene/mood).
+   */
+  idle_list?: string[] | null;
+  idle_mode?: IdlePlaybackMode;
+  idle_bank?: IdleBankConfig | null;
+  idle_state?: string;
+  idle_play?: IdlePlayCommand | string | null;
 }
 
 export interface MessageEvent {
@@ -74,12 +101,23 @@ export interface MessageEvent {
   histories?: HistoryInfo[];
   configs?: ConfigFile[];
   message?: string;
+  score?: number;
   members?: string[];
   is_owner?: boolean;
   client_uid?: string;
   forwarded?: boolean;
   display_text?: DisplayText;
+  turn_id?: string;
+  tts_error?: boolean;
   live2d_model?: string;
+  expression?: string | number;
+  idle_state?: string;
+  idle_list?: string[] | null;
+  idle_mode?: IdlePlaybackMode;
+  idle_bank?: IdleBankConfig | null;
+  mixer_weights?: Partial<Record<PoseLayerId, number>>;
+  mixer_weights_mode?: 'patch' | 'reset';
+  idle_play?: IdlePlayCommand | string | null;
   browser_view?: {
     debuggerFullscreenUrl: string;
     debuggerUrl: string;

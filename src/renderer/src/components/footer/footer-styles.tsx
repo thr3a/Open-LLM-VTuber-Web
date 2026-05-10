@@ -91,7 +91,7 @@ export const footerStyles: {
     container: {
       bg: '#7C5CFF',
       color: 'white',
-      width: '110px',
+      width: '156px',
       height: '30px',
       borderRadius: '12px',
       display: 'flex',
@@ -99,12 +99,15 @@ export const footerStyles: {
       justifyContent: 'center',
       boxShadow: '0 2px 6px rgba(0,0,0,0.1)',
       overflow: 'hidden',
+      flexShrink: 0,
     },
     text: {
       fontSize: '12px',
       whiteSpace: 'nowrap',
       overflow: 'hidden',
       textOverflow: 'ellipsis',
+      minWidth: 0,
+      flex: 1,
     },
   },
 };

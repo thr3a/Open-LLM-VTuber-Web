@@ -20,6 +20,7 @@ interface WebSocketContextProps {
   sendMessage: (message: object) => void;
   wsState: string;
   reconnect: () => void;
+  disconnect: () => void;
   wsUrl: string;
   setWsUrl: (url: string) => void;
   baseUrl: string;
@@ -30,6 +31,7 @@ export const WebSocketContext = React.createContext<WebSocketContextProps>({
   sendMessage: wsService.sendMessage.bind(wsService),
   wsState: 'CLOSED',
   reconnect: () => wsService.connect(DEFAULT_WS_URL),
+  disconnect: () => wsService.disconnect(),
   wsUrl: DEFAULT_WS_URL,
   setWsUrl: () => {},
   baseUrl: DEFAULT_BASE_URL,
@@ -59,6 +61,7 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
     sendMessage: wsService.sendMessage.bind(wsService),
     wsState: 'CLOSED',
     reconnect: () => wsService.connect(wsUrl),
+    disconnect: () => wsService.disconnect(),
     wsUrl,
     setWsUrl: handleSetWsUrl,
     baseUrl,

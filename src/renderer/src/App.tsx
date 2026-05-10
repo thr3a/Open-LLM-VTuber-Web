@@ -29,6 +29,7 @@ import Background from "./components/canvas/background";
 import WebSocketStatus from "./components/canvas/ws-status";
 import Subtitle from "./components/canvas/subtitle";
 import { ModeProvider, useMode } from "./context/mode-context";
+import { MoodProvider } from "./context/mood-context";
 
 function AppContent(): JSX.Element {
   const [showSidebar, setShowSidebar] = useState(true);
@@ -175,24 +176,26 @@ function AppWithGlobalStyles(): JSX.Element {
           <CharacterConfigProvider>
             <ChatHistoryProvider>
               <AiStateProvider>
-                <ProactiveSpeakProvider>
-                  <Live2DConfigProvider>
-                    <SubtitleProvider>
-                      <VADProvider>
-                        <BgUrlProvider>
-                          <GroupProvider>
-                            <BrowserProvider>
-                              <WebSocketHandler>
-                                <Toaster />
-                                <AppContent />
-                              </WebSocketHandler>
-                            </BrowserProvider>
-                          </GroupProvider>
-                        </BgUrlProvider>
-                      </VADProvider>
-                    </SubtitleProvider>
-                  </Live2DConfigProvider>
-                </ProactiveSpeakProvider>
+                <MoodProvider>
+                  <ProactiveSpeakProvider>
+                    <Live2DConfigProvider>
+                      <SubtitleProvider>
+                        <VADProvider>
+                          <BgUrlProvider>
+                            <GroupProvider>
+                              <BrowserProvider>
+                                <WebSocketHandler>
+                                  <Toaster />
+                                  <AppContent />
+                                </WebSocketHandler>
+                              </BrowserProvider>
+                            </GroupProvider>
+                          </BgUrlProvider>
+                        </VADProvider>
+                      </SubtitleProvider>
+                    </Live2DConfigProvider>
+                  </ProactiveSpeakProvider>
+                </MoodProvider>
               </AiStateProvider>
             </ChatHistoryProvider>
           </CharacterConfigProvider>

@@ -6,7 +6,7 @@ import { useSubtitle } from '@/context/subtitle-context';
 import { useAudioTask } from './use-audio-task';
 
 export const useInterrupt = () => {
-  const { aiState, setAiState } = useAiState();
+  const { aiState, setAiState, setBackendSynthComplete } = useAiState();
   const { sendMessage } = useWebSocket();
   const { fullResponse, clearResponse } = useChatHistory();
   // const { currentModel } = useLive2DModel();
@@ -22,6 +22,7 @@ export const useInterrupt = () => {
     audioTaskQueue.clearQueue();
 
     setAiState('interrupted');
+    setBackendSynthComplete(false);
 
     if (sendSignal) {
       sendMessage({

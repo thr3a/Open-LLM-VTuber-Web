@@ -90,13 +90,30 @@ export class LAppLive2DManager {
    * @param y 画面のY座標
    */
   public onDrag(x: number, y: number): void {
+    const targetX = this._dragInputEnabled ? x : 0.0;
+    const targetY = this._dragInputEnabled ? y : 0.0;
     for (let i = 0; i < this._models.getSize(); i++) {
       const model: LAppModel = this.getModel(i)!;
 
       if (model) {
-        model.setDragging(x, y);
+        model.setDragging(targetX, targetY);
       }
     }
+  }
+
+  /**
+   * Enable/disable SDK built-in drag parameter input.
+   * When disabled, drag is forced to neutral and external systems (e.g. mixer) should drive pose.
+   */
+  public setDragInputEnabled(enabled: boolean): void {
+    this._dragInputEnabled = enabled;
+    if (!enabled) {
+      this.onDrag(0.0, 0.0);
+    }
+  }
+
+  public isDragInputEnabled(): boolean {
+    return this._dragInputEnabled;
   }
 
   /**
@@ -223,12 +240,14 @@ export class LAppLive2DManager {
     this._viewMatrix = new CubismMatrix44();
     this._models = new csmVector<LAppModel>();
     this._sceneIndex = 0;
+    this._dragInputEnabled = true;
     this.changeScene(this._sceneIndex);
   }
 
   _viewMatrix: CubismMatrix44; // モデル描画に用いるview行列
   _models: csmVector<LAppModel>; // モデルインスタンスのコンテナ
   _sceneIndex: number; // 表示するシーンのインデックス値
+  _dragInputEnabled: boolean;
   // モーション再生終了のコールバック関数
   _finishedMotion = (self: ACubismMotion): void => {
     LAppPal.printMessage('Motion Finished:');

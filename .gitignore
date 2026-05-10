@@ -18,6 +18,7 @@ release
 dist
 dist-ssr
 build
+electron.vite.config.*.mjs
 *.local
 .docusaurus
 .cache-loader

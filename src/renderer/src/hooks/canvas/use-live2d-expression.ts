@@ -1,83 +1,38 @@
 import { useCallback } from 'react';
 import { ModelInfo } from '@/context/live2d-config-context';
+import {
+  ExpressionSelector,
+  getLive2DParameterLayerController,
+} from '@/hooks/canvas/live2d-parameter-layer-controller';
 
 /**
- * Custom hook for handling Live2D model expressions
+ * Custom hook for handling transient Live2D expressions.
  */
 export const useLive2DExpression = () => {
   /**
-   * Set expression for Live2D model
-   * @param expressionValue - Expression name (string) or index (number)
-   * @param lappAdapter - LAppAdapter instance
-   * @param logMessage - Optional message to log on success
+   * Queue a transient expression patch.
+   * The adapter argument is kept for compatibility with the existing call sites.
    */
   const setExpression = useCallback((
-    expressionValue: string | number,
-    lappAdapter: any,
+    expressionValue: ExpressionSelector,
+    _lappAdapter?: any,
     logMessage?: string,
   ) => {
-    try {
-      if (typeof expressionValue === 'string') {
-        // Set expression by name
-        lappAdapter.setExpression(expressionValue);
-      } else if (typeof expressionValue === 'number') {
-        // Set expression by index
-        const expressionName = lappAdapter.getExpressionName(expressionValue);
-        if (expressionName) {
-          lappAdapter.setExpression(expressionName);
-        }
-      }
-      if (logMessage) {
-        console.log(logMessage);
-      }
-    } catch (error) {
-      console.error('Failed to set expression:', error);
-    }
+    getLive2DParameterLayerController().requestTransientExpression(expressionValue, logMessage);
   }, []);
 
   /**
-   * Reset expression to default
-   * @param lappAdapter - LAppAdapter instance
-   * @param modelInfo - Current model information
+   * Clear the transient expression layer so the model returns to its base appearance.
+   * The existing signature is preserved for compatibility.
    */
   const resetExpression = useCallback((
-    lappAdapter: any,
-    modelInfo?: ModelInfo,
+    _lappAdapter?: any,
+    _modelInfo?: ModelInfo,
   ) => {
-    if (!lappAdapter) return;
-
-    try {
-      // Check if model is loaded and has expressions
-      const model = lappAdapter.getModel();
-      if (!model || !model._modelSetting) {
-        console.log('Model or model settings not loaded yet, skipping expression reset');
-        return;
-      }
-
-      // If model has a default emotion defined, use it
-      if (modelInfo?.defaultEmotion !== undefined) {
-        setExpression(
-          modelInfo.defaultEmotion,
-          lappAdapter,
-          `Reset expression to default: ${modelInfo.defaultEmotion}`,
-        );
-      } else {
-        // Check if model has any expressions before trying to get the first one
-        const expressionCount = lappAdapter.getExpressionCount();
-        if (expressionCount > 0) {
-          const defaultExpressionName = lappAdapter.getExpressionName(0);
-          if (defaultExpressionName) {
-            setExpression(
-              defaultExpressionName,
-              lappAdapter,
-            );
-          }
-        }
-      }
-    } catch (error) {
-      console.log('Failed to reset expression:', error);
-    }
-  }, [setExpression]);
+    getLive2DParameterLayerController().clearTransientExpression(
+      'Cleared transient expression and returned to base appearance',
+    );
+  }, []);
 
   return {
     setExpression,
